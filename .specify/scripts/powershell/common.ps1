@@ -15,6 +15,38 @@ function Get-RepoRoot {
     return (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 }
 
+function Resolve-TemplateContent {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$TemplateName,
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot
+    )
+
+    $templatePath = Join-Path $RepoRoot ".specify/templates/$TemplateName.md"
+    if (-not (Test-Path $templatePath -PathType Leaf)) {
+        return $null
+    }
+
+    return [System.IO.File]::ReadAllText($templatePath)
+}
+
+function Resolve-Template {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$TemplateName,
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot
+    )
+
+    $templatePath = Join-Path $RepoRoot ".specify/templates/$TemplateName.md"
+    if (Test-Path $templatePath -PathType Leaf) {
+        return $templatePath
+    }
+
+    return $null
+}
+
 function Get-CurrentBranch {
     # First check if SPECIFY_FEATURE environment variable is set
     if ($env:SPECIFY_FEATURE) {
@@ -97,6 +129,19 @@ function Get-FeaturePathsEnv {
     $currentBranch = Get-CurrentBranch
     $hasGit = Test-HasGit
     $featureDir = Get-FeatureDir -RepoRoot $repoRoot -Branch $currentBranch
+
+    $featureMetadataPath = Join-Path $repoRoot '.specify/feature.json'
+    if (Test-Path $featureMetadataPath -PathType Leaf) {
+        try {
+            $featureMetadata = Get-Content $featureMetadataPath -Raw | ConvertFrom-Json
+            if ($featureMetadata.feature_directory) {
+                $featureDir = Join-Path $repoRoot $featureMetadata.feature_directory
+                $currentBranch = Split-Path $featureMetadata.feature_directory -Leaf
+            }
+        } catch {
+            Write-Warning "Could not read feature metadata at $featureMetadataPath; using branch-based feature paths."
+        }
+    }
     
     [PSCustomObject]@{
         REPO_ROOT     = $repoRoot
